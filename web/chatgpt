@@ -1,0 +1,48 @@
+import cloud from '@lafjs/cloud'
+import axios from 'axios'
+
+const dingtalk_robot_url = 'https://oapi.dingtalk.com/robot/send?access_token=55c8f230c7cb6b18c51e182bc6a2ae41b84fa4e30c3d5d9dee4ae3a'
+const sendDingDing = async (md) => {
+  const sendMessage = {
+    msgtype: "markdown",
+    markdown: {
+      title: "掘金消息",
+      text: md,
+    }
+  };
+  return await axios.post(dingtalk_robot_url, sendMessage);
+};
+
+export async function main(ctx: FunctionContext) {
+  // body, query 为请求参数, auth 是授权对象
+  const { auth, body, query } = ctx;
+
+  // 数据库操作
+  // const db = cloud.database()
+  // const r = await db.collection('admins').get()
+  const { ChatGPTAPI } = await import('chatgpt')
+
+  let api=cloud.shared.get('api')
+  if(!api){
+    api = new ChatGPTAPI({ apiKey: cloud.env.OPENAI_API_KEY })
+    cloud.shared.set('api', api)
+  }
+  const prompt = body.text.content;
+
+  const parentMessageId = cloud.shared.get('parentMessageId')
+
+  let res
+  // 这里前端如果传过来 parentMessageId 则代表需要追踪上下文
+  if (!parentMessageId) {
+    res = await api.sendMessage(prompt)
+  } else {
+    res = await api.sendMessage(prompt, { parentMessageId })
+  }
+
+  cloud.shared.set('parentMessageId', res.id)
+
+  console.log(res.text)
+
+  sendDingDing(res.text)
+  return
+}
